@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "baas"
+version = "0.1.0"
+description = "Boolean-As-A-Service"
+authors = []
+
+[tool.poetry.dependencies]
+python = "^3.9"
+sanic = "^21.9.3"
+uvicorn = "^0.16.0"
+pony = "^0.7.14"
+bcrypt = "^3.2.0"
+PyMySQL = "^1.0.2"
+
+[tool.poetry.dev-dependencies]
+black = "^21.12b0"
+pre-commit = "^2.16.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
