@@ -15,14 +15,6 @@ Additionally, this uses `black` formatting as a pre-commit hook.  In order for t
 you'll need to install `pre-commit` locally using `python3 -m pip install pre-commit`  
 _(make sure you're doing this in your base machine's Python interpreter!)_
 
-## Events
-
-CREATE EVENT IF NOT EXISTS expire_user
-        ON SCHEDULE EVERY 1 DAY
-        COMMENT 'Each day, clears out Users that have not been accessed in 1 month'
-        DO
-            DELETE FROM user WHERE user.last_accessed < DATE_SUB(NOW(), INTERVAL 1 MONTH);
-
 ## Running the app
 
 For local dev convenience, a Docker Compose script has been setup that will run a MySQL DB with test data
@@ -62,6 +54,26 @@ You will be provided an auto-generated `key` in the response.
 
 - `GET /bools`:  List all bools for your User
 - `POST /bools`: Create a new bool for your User
+  - Body:  `{"name": "Some_Bool_Name", "value": false}`
+    - All fields are required. `value` must be a `boolean`
 - `GET /bools/<id:int>`:  Get a single bool by ID for your User
 - `POST /bools/<id:int>`:  Toggle the value of a bool for your User
 - `DELETE /bools/<id:int>`:  Delete one of your bools.
+
+#### Response Structure
+
+**Default**
+```json
+{
+  "bool": {
+    "id": 2,
+    "name": "SomeBool",
+    "value": false,
+    "owner": 1
+  }
+}
+```
+**Using `?simple=true`**
+```json
+{ "value": false }
+```
