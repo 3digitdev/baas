@@ -27,4 +27,4 @@ class Bool(db.Entity):
     def as_json(self, simple: bool = False) -> Dict[str, Any]:
         if simple:
             return {"value": self.value}
-        return {"id": self.id, "name": self.name, "value": self.value, "owner": self.owner}
+        return {"id": self.id, "name": self.name, "value": self.value, "owner": self.owner.id}

@@ -6,7 +6,6 @@ import time
 import uvicorn
 
 from datetime import datetime
-from functools import wraps
 from http import HTTPStatus
 from pony.orm import OperationalError
 from pony.orm.core import ObjectNotFound, db_session
@@ -14,7 +13,7 @@ from sanic import Sanic, json, Request
 from sanic.response import empty
 from uuid import uuid4
 
-from models import Bool, User, db
+from .models import Bool, User, db
 
 db_config = {
     "provider": "mysql",
@@ -39,6 +38,13 @@ if not connected:
     print("ERROR:  Unable to connect to DB after 10s")
     sys.exit(1)
 db.generate_mapping(create_tables=True)
+# Setup event for auto-clearing users based on inactivity
+db.execute(
+    "CREATE EVENT IF NOT EXISTS expire_user "
+    "ON SCHEDULE EVERY 1 DAY COMMENT "
+    "'Each day, clears out Users that have not been accessed in 1 month' "
+    "DO DELETE FROM user WHERE user.last_accessed < DATE_SUB(NOW(), INTERVAL 1 MONTH);"
+)
 app.ctx.db = db
 
 
@@ -47,37 +53,29 @@ def bool_param(request: Request, param: str) -> bool:
     return request.args.get(param, "false").lower() == "true"
 
 
-def protected(wrapped):
-    """
-    Decorator for routes that authenticates the user's API Key and then
-    adds the found User to the app context before calling the endpoint
-    """
-    def decorator(f):
-        @wraps(f)
-        async def dec_func(request, *args, **kwargs):
-            header_error = json(
-                {"error": "Invalid Authorization Header"},
-                status=HTTPStatus.UNAUTHORIZED
-            )
-            head = request.headers.get("Authorization", "")
-            if "Basic " not in head:
+@app.on_request
+def auth(request: Request):
+    if "users" in request.path:
+        return
+    header_error = json(
+        {"error": "Invalid Authorization Header"},
+        status=HTTPStatus.UNAUTHORIZED
+    )
+    head = request.headers.get("Authorization", "")
+    if "Basic " not in head:
+        return header_error
+    key, secret = base64.b64decode(head.split(" ", 1)[1]).decode("utf-8").split(":", 1)
+    try:
+        with db_session:
+            user = User.get(key=key)
+            if not bcrypt.checkpw(secret.encode("utf-8"), user.secret):
                 return header_error
-            key, secret = base64.b64decode(head.split(" ", 1)[1]).decode("utf-8").split(":", 1)
-            try:
-                with db_session:
-                    user = User.get(key=key)
-                    if not bcrypt.checkpw(secret, user.secret):
-                        return header_error
-                    # update last access date to track for expiration
-                    # note that this only happens if they successfully authenticated!
-                    user.last_accessed = datetime.now()
-            except ObjectNotFound:
-                return header_error
-            app.ctx.user = user
-            response = await f(request, *args, **kwargs)
-            return response
-        return dec_func
-    return decorator(wrapped)
+            # update last access date to track for expiration
+            # note that this only happens if they successfully authenticated!
+            user.last_accessed = datetime.now()
+            app.ctx.user = user.id
+    except ObjectNotFound:
+        return header_error
 
 
 @app.post("/users")
@@ -98,7 +96,7 @@ def create_user(request: Request):
     salt = bcrypt.gensalt()
     with db_session:
         user = User(
-            key=uuid4(),
+            key=str(uuid4()),
             secret=bcrypt.hashpw(request.json["secret"].encode("utf-8"), salt)
         )
     return json({
@@ -108,14 +106,13 @@ def create_user(request: Request):
 
 
 @app.get("/bools")
-@db_session
-@protected
 def list_bools(request: Request):
-    return json({"bools": [b.as_json() for b in app.ctx.user.bools]})
+    with db_session:
+        bools = [b.as_json() for b in User[app.ctx.user].bools]
+    return json({"bools": bools})
 
 
 @app.post("/bools")
-@protected
 def create_bool(request: Request):
     invalid_body_msg = "Request body must be in the format {'name': 'foo', 'value': true}"
     if "name" not in request.json or "value" not in request.json:
@@ -125,20 +122,23 @@ def create_bool(request: Request):
     if not isinstance(name, str) or not isinstance(value, bool):
         return json({"error": invalid_body_msg}, status=HTTPStatus.BAD_REQUEST)
     with db_session:
-        boolean = Bool(name=name, value=value, user=app.ctx.user)
-    return json({"bool": boolean.as_json(bool_param(request, "simple"))})
+        boolean = Bool(name=name, value=value, owner=app.ctx.user)
+    if bool_param(request, "simple"):
+        return json(boolean.as_json(True))
+    return json({"bool": boolean.as_json()})
 
 
 @app.get("/bools/<bool_id:int>")
-@protected
 def get_bool(request: Request, bool_id: int):
     try:
         with db_session:
             boolean = Bool[bool_id]
-            if boolean not in app.ctx.user.bools:
-                raise ObjectNotFound("")
-        return json({"bool": boolean.as_json(bool_param(request, "simple"))})
-    except ObjectNotFound:
+            if boolean not in User[app.ctx.user].bools:
+                raise AttributeError
+        if bool_param(request, "simple"):
+            return json(boolean.as_json(True))
+        return json({"bool": boolean.as_json()})
+    except (ObjectNotFound, AttributeError):
         return json(
             {"error": f"Could not find boolean with ID '{bool_id}'"},
             status=HTTPStatus.NOT_FOUND
@@ -146,15 +146,17 @@ def get_bool(request: Request, bool_id: int):
 
 
 @app.post("/bools/<bool_id:int>")
-@protected
 def toggle_bool(request: Request, bool_id: int):
     try:
         with db_session:
             boolean = Bool[bool_id]
-            if boolean not in app.ctx.user.bools:
-                raise ObjectNotFound("")
+            if boolean not in User[app.ctx.user].bools:
+                raise AttributeError
             boolean.set(value=(not boolean.value))
-    except ObjectNotFound:
+        if bool_param(request, "simple"):
+            return json(boolean.as_json(True))
+        return json({"bool": boolean.as_json()})
+    except (ObjectNotFound, AttributeError):
         return json(
             {"error": f"Could not find boolean with ID '{bool_id}'"},
             status=HTTPStatus.NOT_FOUND
@@ -163,14 +165,13 @@ def toggle_bool(request: Request, bool_id: int):
 
 @app.delete("/bools/<bool_id:int>")
 @db_session
-@protected
 def delete_bool(request: Request, bool_id: int):
     try:
         boolean = Bool[bool_id]
-        if boolean not in app.ctx.user.bools:
-            raise ObjectNotFound("")
+        if boolean not in User[app.ctx.user].bools:
+            raise AttributeError
         Bool[bool_id].delete()
-    except ObjectNotFound:
+    except (ObjectNotFound, AttributeError):
         pass
     return empty(status=HTTPStatus.NO_CONTENT)
 

@@ -1,0 +1,23 @@
+version: '3.3'
+services:
+  baas-db:
+    platform: linux/x86_64
+    image: mysql
+    volumes:
+      - '${HOME}/baasdb/:/var/lib/mysql'
+    environment:
+      - MYSQL_USER=$SQL_USER
+      - MYSQL_PASSWORD=$SQL_PASSWORD
+      - MYSQL_ROOT_PASSWORD=$SQL_PASSWORD
+      - MYSQL_DATABASE=$SQL_DB
+    ports: ["3306:3306"]
+  baas-api:
+    build: .
+    ports: ["8000:8000"]
+    environment:
+      - SQL_USER=$SQL_USER
+      - SQL_PASSWORD=$SQL_PASSWORD
+      - SQL_DB=$SQL_DB
+      - SQL_ROOT_USER=$SQL_ROOT_USER
+    depends_on:
+      - baas-db
