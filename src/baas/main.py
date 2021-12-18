@@ -1,12 +1,10 @@
 import base64
+import bcrypt
 import os
 import sys
 import time
 import uvicorn
 
-from cryptography.exceptions import InvalidKey
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from datetime import datetime
 from http import HTTPStatus
 from pony.orm import OperationalError
@@ -70,12 +68,7 @@ def auth(request: Request):
     try:
         with db_session:
             user = User.get(key=key)
-            kdf = PBKDF2HMAC(
-                algorithm=hashes.SHA256(), length=32, salt=user.salt, iterations=39000
-            )
-            try:
-                kdf.verify(secret.encode("utf-8"), user.secret)
-            except InvalidKey:
+            if not bcrypt.checkpw(secret.encode("utf-8"), user.secret):
                 return header_error
             # update last access date to track for expiration
             # note that this only happens if they successfully authenticated!
@@ -100,11 +93,10 @@ def create_user(request: Request):
             {"error": "must provide a secret like {'secret': 'hunter2'}"},
             status=HTTPStatus.BAD_REQUEST,
         )
-    salt = os.urandom(16)
-    kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=39000)
-    hash_secret = kdf.derive(request.json["secret"].encode("utf-8"))
+    salt = bcrypt.gensalt()
+    hash_secret = bcrypt.hashpw(request.json["secret"].encode("utf-8"), salt)
     with db_session:
-        user = User(key=str(uuid4()), secret=hash_secret, salt=salt)
+        user = User(key=str(uuid4()), secret=hash_secret)
     return json(
         {
             "key": user.key,
@@ -188,5 +180,8 @@ def delete_bool(request: Request, bool_id: int):
 
 def start():
     uvicorn.run(
-        "baas.main:app", host="0.0.0.0", port=os.environ.get("PORT", 8000), workers=4
+        "baas.main:app",
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", "8000")),
+        workers=4,
     )
