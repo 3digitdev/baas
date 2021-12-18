@@ -8,7 +8,6 @@ RUN apt-get update && \
 RUN poetry install --no-dev
 
 COPY src .
-COPY .env src/baas
 EXPOSE 8000
 
 ENTRYPOINT ["poetry", "run", "api"]
