@@ -9,7 +9,7 @@ db = orm.Database()
 class User(db.Entity):
     _table_ = "user"
     key = orm.Required(str, unique=True)
-    secret = orm.Required(str)
+    secret = orm.Required(bytes)
     created_on = orm.Required(datetime, default=datetime.now())
     last_accessed = orm.Required(datetime, default=datetime.now())
     # Relationship(s)

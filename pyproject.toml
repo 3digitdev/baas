@@ -13,7 +13,7 @@ sanic = "^21.9.3"
 uvicorn = "^0.16.0"
 pony = "^0.7.14"
 PyMySQL = "^1.0.2"
-py-bcrypt = "^0.4"
+bcrypt = "^3.2.0"
 
 [tool.poetry.dev-dependencies]
 black = "^21.12b0"

@@ -68,7 +68,7 @@ def auth(request: Request):
     try:
         with db_session:
             user = User.get(key=key)
-            if not bcrypt.checkpw(secret, user.secret):
+            if not bcrypt.checkpw(secret.encode("utf-8"), user.secret):
                 return header_error
             # update last access date to track for expiration
             # note that this only happens if they successfully authenticated!
@@ -97,7 +97,7 @@ def create_user(request: Request):
     with db_session:
         user = User(
             key=str(uuid4()),
-            secret=bcrypt.hashpw(request.json["secret"], salt),
+            secret=bcrypt.hashpw(request.json["secret"].encode("utf-8"), salt),
         )
     return json(
         {
