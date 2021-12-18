@@ -12,7 +12,8 @@ automatically for you.
 from within the root of the project
 
 Additionally, this uses `black` formatting as a pre-commit hook.  In order for this to run,
-you'll need to install `pre-commit` locally using `python3 -m pip install pre-commit`  
+you'll need to install `pre-commit` locally using `python3 -m pip install pre-commit`,
+then run `pre-commit install` at the root of the project to enable the `black` hook
 _(make sure you're doing this in your base machine's Python interpreter!)_
 
 ## Running the app

@@ -58,8 +58,7 @@ def auth(request: Request):
     if "users" in request.path:
         return
     header_error = json(
-        {"error": "Invalid Authorization Header"},
-        status=HTTPStatus.UNAUTHORIZED
+        {"error": "Invalid Authorization Header"}, status=HTTPStatus.UNAUTHORIZED
     )
     head = request.headers.get("Authorization", "")
     if "Basic " not in head:
@@ -91,18 +90,20 @@ def create_user(request: Request):
     if "secret" not in request.json:
         return json(
             {"error": "must provide a secret like {'secret': 'hunter2'}"},
-            status=HTTPStatus.BAD_REQUEST
+            status=HTTPStatus.BAD_REQUEST,
         )
     salt = bcrypt.gensalt()
     with db_session:
         user = User(
             key=str(uuid4()),
-            secret=bcrypt.hashpw(request.json["secret"].encode("utf-8"), salt)
+            secret=bcrypt.hashpw(request.json["secret"].encode("utf-8"), salt),
         )
-    return json({
-        "key": user.key,
-        "warning": "IF YOU LOSE THIS KEY, YOU WILL BE UNABLE TO RECOVER YOUR ACCOUNT."
-    })
+    return json(
+        {
+            "key": user.key,
+            "warning": "IF YOU LOSE THIS KEY, YOU WILL BE UNABLE TO RECOVER YOUR ACCOUNT.",
+        }
+    )
 
 
 @app.get("/bools")
@@ -114,7 +115,9 @@ def list_bools(request: Request):
 
 @app.post("/bools")
 def create_bool(request: Request):
-    invalid_body_msg = "Request body must be in the format {'name': 'foo', 'value': true}"
+    invalid_body_msg = (
+        "Request body must be in the format {'name': 'foo', 'value': true}"
+    )
     if "name" not in request.json or "value" not in request.json:
         return json({"error": invalid_body_msg}, status=HTTPStatus.BAD_REQUEST)
     name = request.json["name"]
@@ -141,7 +144,7 @@ def get_bool(request: Request, bool_id: int):
     except (ObjectNotFound, AttributeError):
         return json(
             {"error": f"Could not find boolean with ID '{bool_id}'"},
-            status=HTTPStatus.NOT_FOUND
+            status=HTTPStatus.NOT_FOUND,
         )
 
 
@@ -159,7 +162,7 @@ def toggle_bool(request: Request, bool_id: int):
     except (ObjectNotFound, AttributeError):
         return json(
             {"error": f"Could not find boolean with ID '{bool_id}'"},
-            status=HTTPStatus.NOT_FOUND
+            status=HTTPStatus.NOT_FOUND,
         )
 
 
