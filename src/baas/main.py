@@ -9,8 +9,8 @@ from datetime import datetime
 from http import HTTPStatus
 from pony.orm import OperationalError
 from pony.orm.core import ObjectNotFound, db_session
-from sanic import Sanic, json, Request
-from sanic.response import empty
+from sanic import Sanic, Request
+from sanic.response import empty, json
 from uuid import uuid4
 
 from .models import Bool, User, db
