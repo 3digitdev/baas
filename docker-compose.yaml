@@ -19,5 +19,6 @@ services:
       - SQL_PASSWORD=$SQL_PASSWORD
       - SQL_DB=$SQL_DB
       - SQL_ROOT_USER=$SQL_ROOT_USER
+      - SQL_HOST=$SQL_HOST
     depends_on:
       - baas-db

@@ -19,7 +19,7 @@ db_config = {
     "provider": "mysql",
     "user": os.environ["SQL_USER"],
     "passwd": os.environ["SQL_PASSWORD"],
-    "host": "host.docker.internal",
+    "host": os.environ["SQL_HOST"],
     "db": os.environ["SQL_DB"],
 }
 
@@ -31,7 +31,8 @@ while attempts < 5:
         db.bind(**db_config)
         connected = True
         break
-    except OperationalError:
+    except OperationalError as e:
+        print(e)
         attempts += 1
         time.sleep(2)
 if not connected:
@@ -67,13 +68,13 @@ def auth(request: Request):
     try:
         with db_session:
             user = User.get(key=key)
-            if not bcrypt.checkpw(secret.encode("utf-8"), user.secret):
+            if not bcrypt.checkpw(secret, user.secret):
                 return header_error
             # update last access date to track for expiration
             # note that this only happens if they successfully authenticated!
             user.last_accessed = datetime.now()
             app.ctx.user = user.id
-    except ObjectNotFound:
+    except (ObjectNotFound, ValueError):
         return header_error
 
 
@@ -96,7 +97,7 @@ def create_user(request: Request):
     with db_session:
         user = User(
             key=str(uuid4()),
-            secret=bcrypt.hashpw(request.json["secret"].encode("utf-8"), salt),
+            secret=bcrypt.hashpw(request.json["secret"], salt),
         )
     return json(
         {
@@ -180,4 +181,4 @@ def delete_bool(request: Request, bool_id: int):
 
 
 def start():
-    uvicorn.run("baas.main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("baas.main:app", host="0.0.0.0", port=os.environ["PORT"], workers=4)
